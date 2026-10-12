@@ -6,7 +6,7 @@ Both Fabric targets run checks for configuration recovery and permissions, actua
 
 Release checks inspect both built JARs, verify version metadata and checksums, compare ZIP bytes after file timestamp changes, exclude untracked scratch files, and reject dirty tracked source.
 
-The first complete six-target CI run passed on Linux, Windows, and macOS for Minecraft 1.21.1 with Java 21 and Minecraft 26.2 with Java 25. See [the run](https://github.com/arogan178/minenotify/actions/runs/38304786309). Later changes repeat CI on the final pull-request revision.
+The first complete six-target CI run passed on Linux, Windows, and macOS for Minecraft 1.21.1 with Java 21 and Minecraft 26.2 with Java 25. The final code revision also passed all six targets and the packaging job in [this run](https://github.com/arogan178/minenotify/actions/runs/38305936458). Subsequent changes add only verification notes and screenshots, so the full build matrix was not repeated for them.
 
 ## Native Minecraft 26.2
 
@@ -20,7 +20,9 @@ During launch, this desktop's XWayland window remained stuck in GLFW's window vi
 
 ## Limits
 
-Cross-platform CI covers builds and Java/Python behavior, not actual Windows/macOS launcher installation or rendered gameplay. The new history screen has native gameplay evidence on 26.2; its 1.21.1 adapter compiles and shares the checked history model, but still needs a fresh gameplay check. Earlier screenshots show the original 1.21.1 notification/settings UI.
+Cross-platform CI covers builds and Java/Python behavior, not actual Windows/macOS launcher installation or rendered gameplay. Native gameplay also verified the new 1.21.1 F8 settings and history list, using four actual HTTP notifications from alternating sources. Its three-row list fits the minimum GUI height and orders entries newest first. Detailed preview and navigation checks were performed on 26.2; both adapters share the checked history model.
+
+![History in Minecraft 1.21.1](images/history-mc1.21.1.png)
 
 Fixture checks do not edit global agent settings. A prior isolated Claude Code session verified execution of the generated Stop hook. Ordinary web chat and automatic T3 completion capture remain outside this release.
 
