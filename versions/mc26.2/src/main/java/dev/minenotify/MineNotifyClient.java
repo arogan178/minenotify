@@ -2,6 +2,7 @@ package dev.minenotify;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Instant;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommands;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
@@ -27,6 +28,7 @@ public final class MineNotifyClient implements ClientModInitializer {
     private static final Logger LOG = LoggerFactory.getLogger("MineNotify");
     final Path configPath = FabricLoader.getInstance().getConfigDir().resolve("minenotify.json");
     final PopupHud popups = new PopupHud();
+    final NotificationHistory history = new NotificationHistory();
     ConfigFile config = new ConfigFile();
     private LocalReceiver receiver;
     private String receiverStatus = "Not started";
@@ -47,16 +49,17 @@ public final class MineNotifyClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (settingsKey.consumeClick()) {
                 if (client.gui.screen() instanceof SettingsScreen screen) screen.onClose();
+                else if (client.gui.screen() instanceof HistoryScreen screen) screen.onClose();
                 else client.gui.setScreen(new SettingsScreen(client.gui.screen(), this));
             }
-            if (receiver != null && client.level != null) {
+            if (receiver != null && (client.level != null || !config.settings.enabled)) {
                 Notification notification;
                 while ((notification = receiver.poll()) != null) show(client, notification);
             }
         });
         HudElementRegistry.attachElementAfter(VanillaHudElements.CHAT, Identifier.fromNamespaceAndPath("minenotify", "popups"), (context, tickCounter) -> {
             Minecraft client = Minecraft.getInstance();
-            if (!(client.gui.screen() instanceof SettingsScreen) && !client.gui.hud.isHidden()) {
+            if (!(client.gui.screen() instanceof SettingsScreen) && !(client.gui.screen() instanceof HistoryScreen) && !client.gui.hud.isHidden()) {
                 popups.render(context, client.font, config.settings, context.guiWidth(), context.guiHeight());
             }
         });
@@ -66,6 +69,16 @@ public final class MineNotifyClient implements ClientModInitializer {
                         .then(ClientCommands.literal("settings").executes(context -> {
                             Minecraft client = context.getSource().getClient();
                             client.execute(() -> client.gui.setScreen(new SettingsScreen(client.gui.screen(), this)));
+                            return 1;
+                        }))
+                        .then(ClientCommands.literal("history").executes(context -> {
+                            Minecraft client = context.getSource().getClient();
+                            client.execute(() -> client.gui.setScreen(new HistoryScreen(client.gui.screen(), this)));
+                            return 1;
+                        }))
+                        .then(ClientCommands.literal("clear").executes(context -> {
+                            history.clear();
+                            context.getSource().sendFeedback(Component.literal("MineNotify notification history cleared."));
                             return 1;
                         }))
                         .then(ClientCommands.literal("test").executes(context -> { test(context.getSource().getClient()); return 1; }))
@@ -84,6 +97,7 @@ public final class MineNotifyClient implements ClientModInitializer {
     private void show(Minecraft client, Notification notification) {
         Settings settings = config.settings;
         if (!settings.enabled) return;
+        history.add(notification, Instant.now());
         if (settings.displayMode != Settings.DisplayMode.POPUP) {
             var text = Component.literal("[" + notification.source() + "] ").withStyle(ChatFormatting.GREEN)
                     .append(Component.literal(notification.title()).withStyle(ChatFormatting.WHITE));

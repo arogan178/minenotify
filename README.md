@@ -2,14 +2,14 @@
 
 Receive Codex CLI and Claude Code notifications inside Minecraft Java Edition. Choose local chat messages, popups, or both. Popups can sit in any corner with adjustable offsets, size, duration, and sound.
 
-MineNotify runs on your client. Notifications never enter multiplayer server chat. The bridge sends messages only to your own computer and needs no API key or cloud service. Response previews are off by default.
+MineNotify runs on your client. Notifications never enter multiplayer server chat. The bridge sends messages only to your own computer and needs no API key or cloud service. Response previews are off by default. Notifications shown in Minecraft chat can appear in its chat log; use popup-only mode to keep them out of that log.
 
 This release has two Fabric builds. It does not support Bedrock, Forge, or NeoForge.
 
 | Minecraft | Mod JAR | Java | Fabric Loader | Fabric API |
 | --- | --- | --- | --- | --- |
-| 26.2 | `minenotify-0.1.0-mc26.2.jar` | 25+ | 0.19.3+ | 0.161.0+26.2 or newer for 26.2 |
-| 1.21.1 | `minenotify-0.1.0.jar` | 21+ | 0.16.14+ | A release for 1.21.1 |
+| 26.2 | `minenotify-0.2.0-mc26.2.jar` | 25+ | 0.19.3+ | 0.161.0+26.2 or newer for 26.2 |
+| 1.21.1 | `minenotify-0.2.0.jar` | 21+ | 0.16.14+ | A release for 1.21.1 |
 
 ## Install and test
 
@@ -26,6 +26,23 @@ python3 tools/notify.py --config "/path/to/minecraft/config/minenotify.json" --t
 ```
 
 On Windows, use `py -3` in place of `python3`. The config is created when Minecraft first starts with MineNotify. The command prints `Notification accepted by Minecraft.` when the mod accepts the message.
+
+## Guided setup
+
+The setup helper can locate common launcher instances, preview changes, and connect both agents while preserving existing settings and hooks.
+
+```sh
+python3 tools/setup.py --list
+python3 tools/setup.py --config "/path/to/minecraft/config/minenotify.json" --codex --claude
+```
+
+Review the plan, then repeat the second command with `--apply`. The helper backs up changed files and refuses to replace an unrelated Codex notification command. See [setup instructions](docs/setup.md) for custom launcher paths and existing hooks.
+
+## Notification history
+
+Press **F8**, then **History**, or use `/minenotify history`. The last 50 notifications remain in memory until cleared or Minecraft exits. Select an entry for its details. Response text stays hidden when previews are disabled. Use **Clear history** or `/minenotify clear` to erase it.
+
+See [history behavior](docs/history.md).
 
 ## Connect Codex CLI
 
@@ -78,6 +95,12 @@ Direct integrations can use the [local HTTP protocol](docs/protocol.md). ChatGPT
 
 Run `/minenotify status` inside Minecraft, then rerun the bridge with `--test`.
 
+```sh
+python3 tools/notify.py --config "/path/to/minecraft/config/minenotify.json" --status
+```
+
+This authenticated check reports listener health, queue usage, accepted messages, expired messages, and uptime. Messages waiting more than five minutes are discarded so old alerts do not appear after a long absence.
+
 - If the config does not exist, launch Minecraft with the mod installed. Check that your path points to the correct launcher instance.
 - If the listener cannot start, close another Minecraft instance using the same port. To use multiple instances, give each a different `port` in its config while Minecraft is closed and restart.
 - If the bridge reports a token mismatch, point it to the config used by the running instance.
@@ -96,11 +119,12 @@ For Minecraft 1.21.1, use Java 21:
 ```sh
 ./gradlew build
 python3 tools/test_bridge.py
+python3 tools/test_setup.py
 ```
 
-On Windows, use `gradlew.bat build` and `py -3 tools/test_bridge.py`. The installable mod is `build/libs/minenotify-0.1.0.jar`. The `-sources.jar` is for developers.
+On Windows, use `gradlew.bat build` and `py -3 tools/test_bridge.py`. The installable mod is `build/libs/minenotify-0.2.0.jar`. The `-sources.jar` is for developers.
 
-`build` runs the Java receiver checks. The Python check exercises the bridge through its command line and a real local HTTP receiver. `./gradlew runClient` launches a development client for UI checks.
+`build` runs the Java configuration, receiver, and history checks. The Python check exercises the bridge through its command line and a real local HTTP receiver. `./gradlew runClient` launches a development client for UI checks.
 
 For Minecraft 26.2, use Java 25:
 
@@ -108,7 +132,7 @@ For Minecraft 26.2, use Java 25:
 versions/mc26.2/gradlew -p versions/mc26.2 build
 ```
 
-The resulting JAR is `versions/mc26.2/build/libs/minenotify-0.1.0-mc26.2.jar`. The modern build reuses the core sources and checks from the root project. Only the Minecraft UI adapters differ.
+The resulting JAR is `versions/mc26.2/build/libs/minenotify-0.2.0-mc26.2.jar`. The modern build reuses the core sources and checks from the root project. Only the Minecraft UI adapters differ.
 
 To build with a newer compiler, set `-Pbuild_java_version=27`. The output still targets Java 25. In the development environment used here, Gradle runs under Java 21 and uses a Java 27 compiler for this target:
 
@@ -116,8 +140,10 @@ To build with a newer compiler, set `-Pbuild_java_version=27`. The output still 
 JAVA_HOME=/usr/lib/jvm/java-21-openjdk versions/mc26.2/gradlew -p versions/mc26.2 -Pbuild_java_version=27 build
 ```
 
-Run `python3 tools/package_release.py` after building both targets to create installation and source ZIPs in `dist/`.
+Run `python3 tools/test_package.py` after building both targets to create and verify installation and source ZIPs plus SHA-256 checksums in `dist/`. Source packaging requires a clean Git checkout with committed source changes. The packages include both Python helpers and exclude game configs, access tokens, worlds, and caches.
+
+GitHub Actions builds both Minecraft targets on Linux, Windows, and macOS, checks both helpers, and verifies the release bundles. Native UI testing is documented separately; a passing build alone does not verify gameplay.
 
 ## License and authorship
 
-MIT licensed. This project was developed with substantial AI assistance. Publication on a platform is subject to that platform's current rules. See [release notes](docs/release.md).
+MIT licensed. This project was developed with substantial AI assistance. Publication on a platform is subject to that platform's current rules. See [release notes](docs/release.md) and the [improvement roadmap](docs/roadmap.md).

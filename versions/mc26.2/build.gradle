@@ -2,7 +2,9 @@ plugins {
     id 'net.fabricmc.fabric-loom' version '1.17.21'
 }
 
-version = project.mod_version
+def releaseProperties = new Properties()
+file('../../gradle.properties').withInputStream { releaseProperties.load(it) }
+version = releaseProperties.getProperty('mod_version')
 group = project.maven_group
 base { archivesName = project.archives_base_name }
 repositories { mavenCentral() }
@@ -13,7 +15,8 @@ dependencies {
 }
 def sharedSources = fileTree('../../src/main/java') {
     include 'dev/minenotify/ConfigFile.java', 'dev/minenotify/LocalReceiver.java',
-            'dev/minenotify/Settings.java', 'dev/minenotify/Notification.java'
+            'dev/minenotify/Settings.java', 'dev/minenotify/Notification.java',
+            'dev/minenotify/NotificationHistory.java'
 }
 sourceSets.test.java.srcDir '../../src/test/java'
 compileJava.source(sharedSources)
@@ -28,7 +31,7 @@ java {
 sourcesJar.from(sharedSources)
 tasks.withType(JavaCompile).configureEach { options.release = 25 }
 jar {
-    archiveFileName = 'minenotify-0.1.0-mc26.2.jar'
+    archiveFileName = "minenotify-${project.version}-mc26.2.jar"
     from('../../LICENSE') { rename { "${it}_minenotify" } }
 }
 tasks.register('coreCheck', JavaExec) {
@@ -39,3 +42,24 @@ tasks.register('coreCheck', JavaExec) {
 }
 test { failOnNoDiscoveredTests = false }
 check.dependsOn coreCheck
+
+tasks.register('historyCheck', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.minenotify.HistoryChecks'
+    enableAssertions = true
+}
+check.dependsOn historyCheck
+
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+
+tasks.register('receiverCheck', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.minenotify.ReceiverChecks'
+    enableAssertions = true
+}
+check.dependsOn receiverCheck

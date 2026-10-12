@@ -1,6 +1,5 @@
 plugins {
     id 'fabric-loom' version '1.10.5'
-    id 'maven-publish'
 }
 
 version = project.mod_version
@@ -35,3 +34,24 @@ tasks.register('coreCheck', JavaExec) {
     enableAssertions = true
 }
 check.dependsOn coreCheck
+
+tasks.register('historyCheck', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.minenotify.HistoryChecks'
+    enableAssertions = true
+}
+check.dependsOn historyCheck
+
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+
+tasks.register('receiverCheck', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.minenotify.ReceiverChecks'
+    enableAssertions = true
+}
+check.dependsOn receiverCheck

@@ -55,8 +55,12 @@ public final class SettingsScreen extends Screen {
             button.setMessage(Component.literal("Pause in background: " + onOff(minecraft.options.pauseOnLostFocus)));
         }).bounds(left, top + 120, panel, 20)
                 .tooltip(Tooltip.create(Component.literal("Minecraft setting for all worlds. Off keeps your singleplayer world running when you switch windows."))).build());
+        addRenderableWidget(Button.builder(Component.literal("History"), button -> {
+            if (mod.save()) minecraft.gui.setScreen(new HistoryScreen(this, mod));
+            else saveError = "Could not save settings. Check file permissions.";
+        }).bounds(left, height - 29, column, 20).build());
         addRenderableWidget(Button.builder(Component.literal("Done"), button -> onClose())
-                .bounds(width / 2 - 70, height - 29, 140, 20).build());
+                .bounds(right, height - 29, column, 20).build());
     }
 
     private void button(int x, int y, int width, Supplier<String> label, Runnable change) {

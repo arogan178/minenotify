@@ -3,6 +3,7 @@
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -14,6 +15,8 @@ import tomllib
 
 received = []
 response_status = 202
+health_status = 200
+health_body = {"status": "listening", "pending": 3, "capacity": 32, "accepted": 9, "expired": 2, "uptimeSeconds": 12}
 
 
 class Receiver(BaseHTTPRequestHandler):
@@ -22,6 +25,12 @@ class Receiver(BaseHTTPRequestHandler):
         received.append((self.path, self.headers["Authorization"], json.loads(body)))
         self.send_response(response_status)
         self.end_headers()
+
+    def do_GET(self):
+        received.append((self.path, self.headers["Authorization"], None))
+        self.send_response(health_status)
+        self.end_headers()
+        self.wfile.write(health_body if isinstance(health_body, bytes) else json.dumps(health_body).encode())
 
     def log_message(self, *_):
         pass
@@ -44,6 +53,33 @@ with tempfile.TemporaryDirectory(prefix="minenotify-test-") as directory:
         return result
 
     try:
+        result = subprocess.run(command + ["--status"], capture_output=True, text=True, check=True,
+                                env={**os.environ, "http_proxy": "http://127.0.0.1:1"})
+        assert result.stderr == "" and json.loads(result.stdout) == health_body
+        assert received[-1] == ("/status", "Bearer local-test-token", None)
+        valid_health = health_body
+        invalid_health = [None, [], {}, {**valid_health, "status": "stopped"},
+                          {**valid_health, "capacity": 64}, {**valid_health, "pending": 33},
+                          {**valid_health, "pending": True}, {**valid_health, "accepted": -1},
+                          {**valid_health, "expired": 8}, {**valid_health, "uptimeSeconds": "12"},
+                          {**valid_health, "extra": "local-test-token"}, b"not JSON", b"\xff", b" " * 16385]
+        for health_body in invalid_health:
+            result = subprocess.run(command + ["--status"], capture_output=True, text=True)
+            assert result.returncode == 1 and result.stdout == "", result
+            assert "invalid receiver status response" in result.stderr, result
+            assert "local-test-token" not in result.stderr, result
+        health_body = valid_health
+        health_status = 401
+        result = subprocess.run(command + ["--status"], capture_output=True, text=True)
+        assert result.returncode == 1 and "Access token mismatch" in result.stderr and result.stdout == ""
+        health_status = 202
+        result = subprocess.run(command + ["--status"], capture_output=True, text=True)
+        assert result.returncode == 1 and "unexpected status 202" in result.stderr and result.stdout == ""
+        health_status = 200
+        result = subprocess.run(command + ["--status", "--test"], capture_output=True, text=True)
+        assert result.returncode == 2
+        result = subprocess.run(command + ["--status", "{}"], capture_output=True, text=True)
+        assert result.returncode == 2 and "choose a Codex event or one action" in result.stderr
         result = subprocess.run(command + ["--test"], capture_output=True, text=True, check=True)
         assert result.stdout == "Notification accepted by Minecraft.\n"
         assert received[-1] == (
@@ -51,7 +87,8 @@ with tempfile.TemporaryDirectory(prefix="minenotify-test-") as directory:
             {"source": "MineNotify", "title": "Connected to Minecraft", "message": "Your local notification bridge is working."},
         )
         event = {"type": "agent-turn-complete", "cwd": "/work/my-project", "last-assistant-message": "All checks passed. ✓"}
-        subprocess.run(command + [json.dumps(event)], check=True)
+        result = subprocess.run(command + [json.dumps(event)], check=True, capture_output=True, text=True)
+        assert result.stdout == "" and result.stderr == ""
         assert received[-1][2] == {"source": "Codex", "title": "my-project: task finished", "message": "All checks passed. ✓"}
         subprocess.run(command + ["--message", "Build complete", "--source", "Build", "--title", "Success"], check=True, capture_output=True)
         assert received[-1][2] == {"source": "Build", "title": "Success", "message": "Build complete"}
@@ -159,6 +196,8 @@ with tempfile.TemporaryDirectory(prefix="minenotify-test-") as directory:
                 "message": "Literal paths work.",
             }
         response_status = 401
+        result = subprocess.run(command + [json.dumps(event)], capture_output=True, text=True)
+        assert result.returncode == 0 and result.stdout == "" and result.stderr == ""
         claude(json.dumps({"hook_event_name": "Stop"}))
         assert "Access token mismatch" in claude(json.dumps({"hook_event_name": "Stop"}), ["--verbose"]).stderr
         response_status = 202
@@ -170,11 +209,17 @@ with tempfile.TemporaryDirectory(prefix="minenotify-test-") as directory:
     assert closed.returncode == 0 and closed.stderr == ""
     claude(json.dumps({"hook_event_name": "Stop", "last_assistant_message": "Finished offline."}))
     assert "Cannot reach Minecraft" in claude(json.dumps({"hook_event_name": "Stop"}), ["--verbose"]).stderr
+    closed_status = subprocess.run(command + ["--status"], capture_output=True, text=True)
+    assert closed_status.returncode == 1 and "Cannot reach Minecraft" in closed_status.stderr and closed_status.stdout == ""
     closed_test = subprocess.run(command + ["--test"], capture_output=True, text=True)
     assert closed_test.returncode == 1 and "Cannot reach Minecraft" in closed_test.stderr
     config.write_text(json.dumps({"port": True, "token": "test"}))
     invalid = subprocess.run(command + ["--test"], capture_output=True, text=True)
     assert invalid.returncode == 1 and "invalid port" in invalid.stderr
+    config.write_text(json.dumps({"port": 23456, "token": "secret-token\r\nheader"}))
+    invalid = subprocess.run(command + ["--status"], capture_output=True, text=True)
+    assert invalid.returncode == 1 and "invalid access token" in invalid.stderr
+    assert "secret-token" not in invalid.stderr
     config.write_text("[]")
     invalid = subprocess.run(command + ["--test"], capture_output=True, text=True)
     assert invalid.returncode == 1 and "must be a JSON object" in invalid.stderr
@@ -182,4 +227,4 @@ with tempfile.TemporaryDirectory(prefix="minenotify-test-") as directory:
     config.write_text(json.dumps({"port": 23456, "token": ""}))
     claude(json.dumps({"hook_event_name": "Stop"}))
     assert "no access token" in claude(json.dumps({"hook_event_name": "Stop"}), ["--verbose"]).stderr
-print("Bridge checks passed: HTTP delivery, Codex and Claude hooks, Unicode, generated configs with literal paths, invalid input, authentication, and offline behavior.")
+print("Bridge checks passed: health diagnostics, HTTP delivery, Codex and Claude hooks, Unicode, generated configs with literal paths, invalid input, authentication, and offline behavior.")

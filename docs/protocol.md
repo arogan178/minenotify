@@ -32,12 +32,35 @@ The fields are plain text. Source and title are required; message is optional. T
 | 202 | The notification was accepted into the local inbox. |
 | 400 | The JSON or notification fields are invalid. |
 | 401 | The bearer token is missing or incorrect. |
-| 404 | The path is not `/notify`. |
-| 405 | The request method is not POST. |
+| 404 | The path is neither `/notify` nor `/status`. |
+| 405 | The method is not POST for `/notify` or GET for `/status`. |
 | 413 | The body exceeds the size limit. |
 | 429 | The inbox is full. |
 
-Acceptance does not guarantee immediate display. Minecraft must be in a world and notifications must be enabled. The bounded inbox holds at most 32 messages. The popup renderer shows at most three messages at once.
+Acceptance does not guarantee immediate display. Minecraft must be in a world and notifications must be enabled. The bounded inbox holds at most 32 messages. Undelivered notifications expire after five minutes, measured with a monotonic clock. Expired messages do not occupy inbox capacity or appear when you enter a world. The popup renderer shows at most three messages at once.
+
+## Receiver status
+
+`GET /status` requires the same `Authorization` header as notification delivery. It does not require a body or `Content-Type` header.
+
+A successful request returns HTTP 200 with this shape:
+
+```json
+{
+  "status": "listening",
+  "pending": 3,
+  "capacity": 32,
+  "accepted": 9,
+  "expired": 2,
+  "uptimeSeconds": 12
+}
+```
+
+`pending` counts unexpired messages waiting for delivery. `accepted` counts notifications accepted during this receiver's lifetime, including delivered and expired messages. `expired` counts undelivered messages removed after five minutes. `uptimeSeconds` measures elapsed time since the receiver started. Counters reset when the receiver restarts.
+
+Status requests discard expired entries but leave valid notifications in the inbox. The response never includes access tokens, paths, or notification text. All responses use `Cache-Control: no-store` and provide no CORS headers.
+
+The Python helper's `--status` action prints this JSON without sending a notification. An unreachable receiver, incorrect token, or invalid response produces a diagnostic on stderr and exit code 1. Agent hooks retain their quiet exit code 0 behavior when delivery fails.
 
 ## Connection behavior
 

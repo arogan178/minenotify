@@ -19,6 +19,8 @@ def read_connection(path):
         raise ValueError("MineNotify config has an invalid port")
     if not isinstance(token, str) or not token.strip():
         raise ValueError("MineNotify config has no access token; start Minecraft first")
+    if any(ord(char) < 32 or ord(char) > 126 for char in token):
+        raise ValueError("MineNotify config has an invalid access token")
     return port, token
 
 
@@ -86,11 +88,38 @@ def send(config_path, notification):
             raise ValueError(f"Minecraft returned unexpected status {response.status}")
 
 
+def receiver_status(config_path):
+    port, token = read_connection(config_path)
+    req = request.Request(
+        f"http://127.0.0.1:{port}/status",
+        headers={"Authorization": f"Bearer {token}"},
+        method="GET",
+    )
+    opener = request.build_opener(request.ProxyHandler({}))
+    with opener.open(req, timeout=2) as response:
+        if response.status != 200:
+            raise ValueError(f"Minecraft returned unexpected status {response.status}")
+        raw = response.read(16 * 1024 + 1)
+    try:
+        health = json.loads(raw) if len(raw) <= 16 * 1024 else None
+    except (ValueError, RecursionError):
+        health = None
+    fields = ("pending", "capacity", "accepted", "expired", "uptimeSeconds")
+    if (not isinstance(health, dict) or set(health) != {"status", *fields}
+            or health["status"] != "listening"
+            or any(type(health[field]) is not int or health[field] < 0 for field in fields)
+            or health["capacity"] != 32 or health["pending"] > health["capacity"]
+            or health["pending"] + health["expired"] > health["accepted"]):
+        raise ValueError("Minecraft returned an invalid receiver status response.")
+    return health
+
+
 def parser():
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument("payload", nargs="?", help="JSON event appended by the Codex notify hook")
     result.add_argument("--config", required=True, type=Path, help="Minecraft instance's config/minenotify.json")
     actions = result.add_mutually_exclusive_group()
+    actions.add_argument("--status", action="store_true", help="print receiver health without sending a notification")
     actions.add_argument("--test", action="store_true", help="send a visible connection test")
     actions.add_argument("--message", help="send text from another app or script")
     actions.add_argument("--print-codex-config", action="store_true", help="print the notify setting to paste into Codex")
@@ -105,11 +134,11 @@ def parser():
 def main(argv=None):
     cli = parser()
     args = cli.parse_args(argv)
-    action = args.test or args.message is not None or args.print_codex_config or args.claude or args.print_claude_config
+    action = args.status or args.test or args.message is not None or args.print_codex_config or args.claude or args.print_claude_config
     if args.payload is not None and action:
         cli.error("choose a Codex event or one action")
     if args.payload is None and not action:
-        cli.error("use --test, --message, --claude, --print-codex-config, --print-claude-config, or a Codex event")
+        cli.error("use --status, --test, --message, --claude, --print-codex-config, --print-claude-config, or a Codex event")
     if args.print_codex_config:
         command = [sys.executable, str(Path(__file__).resolve()), "--config", str(args.config.resolve())]
         print("notify = " + json.dumps(command, ensure_ascii=False))
@@ -130,6 +159,9 @@ def main(argv=None):
         return 0
     is_hook = args.payload is not None or args.claude
     try:
+        if args.status:
+            print(json.dumps(receiver_status(args.config)))
+            return 0
         if args.claude:
             raw = sys.stdin.buffer.read(1024 * 1024 + 1)
             if len(raw) > 1024 * 1024:
