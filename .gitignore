@@ -1,0 +1,11 @@
+.gradle/
+build/
+run/
+__pycache__/
+*.pyc
+.work/
+dist/
+artifacts/
+.audit/
+.jdk/
+*.invalid-*

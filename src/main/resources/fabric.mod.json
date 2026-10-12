@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "minenotify",
+  "version": "${version}",
+  "name": "MineNotify",
+  "description": "Private task notifications in Minecraft chat or configurable HUD popups. Includes a local receiver for Codex CLI and other tools.",
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": { "client": ["dev.minenotify.MineNotifyClient"] },
+  "depends": {
+    "fabricloader": ">=0.16.14",
+    "minecraft": "1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

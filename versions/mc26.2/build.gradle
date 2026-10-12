@@ -1,0 +1,41 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version '1.17.21'
+}
+
+version = project.mod_version
+group = project.maven_group
+base { archivesName = project.archives_base_name }
+repositories { mavenCentral() }
+dependencies {
+    minecraft 'com.mojang:minecraft:26.2'
+    implementation 'net.fabricmc:fabric-loader:0.19.3'
+    implementation 'net.fabricmc.fabric-api:fabric-api:0.161.0+26.2'
+}
+def sharedSources = fileTree('../../src/main/java') {
+    include 'dev/minenotify/ConfigFile.java', 'dev/minenotify/LocalReceiver.java',
+            'dev/minenotify/Settings.java', 'dev/minenotify/Notification.java'
+}
+sourceSets.test.java.srcDir '../../src/test/java'
+compileJava.source(sharedSources)
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand 'version': project.version }
+}
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of((findProperty('build_java_version') ?: '25').toInteger())
+    withSourcesJar()
+}
+sourcesJar.from(sharedSources)
+tasks.withType(JavaCompile).configureEach { options.release = 25 }
+jar {
+    archiveFileName = 'minenotify-0.1.0-mc26.2.jar'
+    from('../../LICENSE') { rename { "${it}_minenotify" } }
+}
+tasks.register('coreCheck', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.minenotify.CoreChecks'
+    enableAssertions = true
+}
+test { failOnNoDiscoveredTests = false }
+check.dependsOn coreCheck
