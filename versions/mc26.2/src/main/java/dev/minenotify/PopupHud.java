@@ -2,15 +2,20 @@ package dev.minenotify;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.network.chat.Component;
 
 public final class PopupHud {
     private record Popup(Notification notification, long expiresAt) { }
     public record Rect(int x, int y, int width, int height) { }
+    private static final int TOOLTIP_BACKGROUND = 0xf0100010;
+    // Vanilla toasts are 160 wide; text starts after the 16px icon.
+    private static final int MIN_CARD_WIDTH = 160, MAX_TEXT_WIDTH = 182, TEXT_INSET = 38;
+    private static final String PREVIEW_HINT = "Enable preview in F8 settings";
     private final List<Popup> popups = new ArrayList<>();
 
     public void add(Notification notification, int seconds) {
@@ -33,42 +38,61 @@ public final class PopupHud {
         if (!settings.enabled || settings.displayMode == Settings.DisplayMode.CHAT || popups.isEmpty()) return;
         int screenWidth = (int) (width / settings.scale);
         int screenHeight = (int) (height / settings.scale);
-        int cardWidth = Math.min(280, screenWidth - 16);
-        int cardHeight = settings.showPreview ? 82 : 51;
+        int maxTextWidth = Math.min(MAX_TEXT_WIDTH, screenWidth - 16 - TEXT_INSET);
         int stackOffset = 0;
         context.pose().pushMatrix();
         context.pose().scale((float) settings.scale, (float) settings.scale);
         for (Popup popup : popups) {
+            Notification message = popup.notification();
+            List<FormattedCharSequence> lines = settings.showPreview
+                    ? font.split(Component.literal(message.message().isBlank() ? "Task completed." : message.message()), maxTextWidth)
+                    : List.of();
+            int textWidth = Math.max(font.width(message.source()), font.width(message.title()));
+            for (FormattedCharSequence line : lines) textWidth = Math.max(textWidth, font.width(line));
+            if (!settings.showPreview) textWidth = Math.max(textWidth, font.width(PREVIEW_HINT));
+            int cardWidth = TEXT_INSET + Math.min(Math.max(textWidth, MIN_CARD_WIDTH - TEXT_INSET), maxTextWidth);
+            int cardHeight = settings.showPreview ? 40 + Math.min(3, lines.size()) * 10 : 48;
             if (stackOffset + cardHeight > screenHeight) break;
             Rect box = layout(screenWidth, screenHeight, cardWidth, cardHeight, settings, stackOffset);
             if (box.y() < 0 || box.y() + cardHeight > screenHeight) break;
-            drawCard(context, font, box, popup.notification(), settings.showPreview);
+            drawCard(context, font, box, message, lines, settings.showPreview);
             stackOffset += cardHeight + 6;
         }
         context.pose().popMatrix();
     }
 
-    private static void drawCard(GuiGraphicsExtractor context, Font font, Rect box, Notification message, boolean preview) {
-        int x = box.x(), y = box.y(), width = box.width();
-        context.fill(x + 2, y + 2, x + width + 2, y + box.height() + 2, 0x55000000);
-        context.fill(x, y, x + width, y + box.height(), 0xee141b1a);
-        context.fill(x, y, x + 3, y + box.height(), 0xff77dfb0);
-        context.fill(x + 3, y, x + width, y + 1, 0xff3b5247);
-        context.text(font, fit(font, message.source().toUpperCase(Locale.ROOT), width - 26), x + 12, y + 9, 0xff77dfb0, false);
-        context.text(font, fit(font, message.title(), width - 26), x + 12, y + 25, 0xffedf6f1, false);
+    private static void drawCard(GuiGraphicsExtractor context, Font font, Rect box, Notification message,
+                                 List<FormattedCharSequence> lines, boolean preview) {
+        int x = box.x(), y = box.y(), width = box.width(), height = box.height();
+        drawTooltipFrame(context, x, y, width, height);
+        context.item(new ItemStack(Items.BELL), x + 8, y + 8);
+        int textX = x + 30, textWidth = width - TEXT_INSET;
+        context.text(font, fit(font, message.source(), textWidth), textX, y + 8, 0xffffff55, true);
+        context.text(font, fit(font, message.title(), textWidth), textX, y + 20, 0xffffffff, true);
         if (preview) {
-            List<FormattedCharSequence> lines = font.split(Component.literal(message.message().isBlank() ? "Task completed." : message.message()), width - 26);
             int count = Math.min(3, lines.size());
             for (int i = 0; i < count; i++) {
-                context.text(font, lines.get(i), x + 12, y + 43 + i * 10, 0xffb4c5bd, false);
+                context.text(font, lines.get(i), textX, y + 34 + i * 10, 0xffaaaaaa, true);
             }
             if (lines.size() > 3) {
-                context.fill(x + width - 26, y + 63, x + width - 8, y + 74, 0xff141b1a);
-                context.text(font, "...", x + width - 26, y + 63, 0xffb4c5bd, false);
+                context.fill(x + width - 26, y + 53, x + width - 8, y + 63, TOOLTIP_BACKGROUND);
+                context.text(font, "...", x + width - 26, y + 54, 0xffaaaaaa, true);
             }
         } else {
-            context.text(font, fit(font, "Enable preview in F8 settings", width - 26), x + 12, y + 38, 0xff80988b, false);
+            context.text(font, fit(font, PREVIEW_HINT, textWidth), textX, y + 34, 0xff808080, true);
         }
+    }
+
+    // Vanilla's pre-1.21.2 item tooltip: notched dark-purple panel with a purple gradient border.
+    private static void drawTooltipFrame(GuiGraphicsExtractor context, int x, int y, int width, int height) {
+        int top = 0x505000ff, bottom = 0x5028007f;
+        context.fill(x + 1, y, x + width - 1, y + height, TOOLTIP_BACKGROUND);
+        context.fill(x, y + 1, x + 1, y + height - 1, TOOLTIP_BACKGROUND);
+        context.fill(x + width - 1, y + 1, x + width, y + height - 1, TOOLTIP_BACKGROUND);
+        context.fillGradient(x + 1, y + 1, x + 2, y + height - 1, top, bottom);
+        context.fillGradient(x + width - 2, y + 1, x + width - 1, y + height - 1, top, bottom);
+        context.fill(x + 2, y + 1, x + width - 2, y + 2, top);
+        context.fill(x + 2, y + height - 2, x + width - 2, y + height - 1, bottom);
     }
 
     private static String fit(Font font, String value, int width) {

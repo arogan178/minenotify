@@ -1,5 +1,10 @@
 # Improvements and remaining work
 
+## Delivered in 0.3.0
+
+- Minecraft 26.3 build, with CI and release bundles for all three versions.
+- Vanilla tooltip-style popups sized to their text.
+
 ## Delivered in 0.2.0
 
 - Guided instance discovery and Codex/Claude setup with previews, backups, preservation, and repeatable updates.

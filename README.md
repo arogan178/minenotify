@@ -4,17 +4,18 @@ Receive Codex CLI and Claude Code notifications inside Minecraft Java Edition. C
 
 MineNotify runs on your client. Notifications never enter multiplayer server chat. The bridge sends messages only to your own computer and needs no API key or cloud service. Response previews are off by default. Notifications shown in Minecraft chat can appear in its chat log; use popup-only mode to keep them out of that log.
 
-This release has two Fabric builds. It does not support Bedrock, Forge, or NeoForge.
+This release has three Fabric builds. It does not support Bedrock, Forge, or NeoForge.
 
 | Minecraft | Mod JAR | Java | Fabric Loader | Fabric API |
 | --- | --- | --- | --- | --- |
-| 26.2 | `minenotify-0.2.0-mc26.2.jar` | 25+ | 0.19.3+ | 0.161.0+26.2 or newer for 26.2 |
-| 1.21.1 | `minenotify-0.2.0.jar` | 21+ | 0.16.14+ | A release for 1.21.1 |
+| 26.3 | `minenotify-0.3.0-mc26.3.jar` | 25+ | 0.19.5+ | 0.164.0+26.3 or newer for 26.3 |
+| 26.2 | `minenotify-0.3.0-mc26.2.jar` | 25+ | 0.19.3+ | 0.161.0+26.2 or newer for 26.2 |
+| 1.21.1 | `minenotify-0.3.0.jar` | 21+ | 0.16.14+ | A release for 1.21.1 |
 
 ## Install and test
 
 1. Install Fabric for your Minecraft version in your launcher.
-2. Put the matching MineNotify JAR and [Fabric API for your Minecraft version](https://modrinth.com/mod/fabric-api/versions) into the instance's `mods` folder. Install only one MineNotify JAR per instance.
+2. Download the ZIP for your Minecraft version from the [latest release](https://github.com/arogan178/minenotify/releases/latest). Put its MineNotify JAR and [Fabric API for your Minecraft version](https://modrinth.com/mod/fabric-api/versions) into the instance's `mods` folder. Install only one MineNotify JAR per instance.
 3. Launch Minecraft and enter a world or server.
 4. Press **F8** to open MineNotify settings. You can rebind this key in Minecraft's Controls menu. `/minenotify settings` opens the same screen.
 5. Run `/minenotify test`. You should see a sample notification in your selected display mode.
@@ -122,7 +123,7 @@ python3 tools/test_bridge.py
 python3 tools/test_setup.py
 ```
 
-On Windows, use `gradlew.bat build` and `py -3 tools/test_bridge.py`. The installable mod is `build/libs/minenotify-0.2.0.jar`. The `-sources.jar` is for developers.
+On Windows, use `gradlew.bat build` and `py -3 tools/test_bridge.py`. The installable mod is `build/libs/minenotify-0.3.0.jar`. The `-sources.jar` is for developers.
 
 `build` runs the Java configuration, receiver, and history checks. The Python check exercises the bridge through its command line and a real local HTTP receiver. `./gradlew runClient` launches a development client for UI checks.
 
@@ -132,7 +133,9 @@ For Minecraft 26.2, use Java 25:
 versions/mc26.2/gradlew -p versions/mc26.2 build
 ```
 
-The resulting JAR is `versions/mc26.2/build/libs/minenotify-0.2.0-mc26.2.jar`. The modern build reuses the core sources and checks from the root project. Only the Minecraft UI adapters differ.
+The resulting JAR is `versions/mc26.2/build/libs/minenotify-0.3.0-mc26.2.jar`. The modern build reuses the core sources and checks from the root project. Only the Minecraft UI adapters differ.
+
+Minecraft 26.3 builds the same way from `versions/mc26.3` and produces `minenotify-0.3.0-mc26.3.jar`. Its adapters differ from 26.2 only in the key-binding code, because 26.3 replaced GLFW key constants.
 
 To build with a newer compiler, set `-Pbuild_java_version=27`. The output still targets Java 25. In the development environment used here, Gradle runs under Java 21 and uses a Java 27 compiler for this target:
 
@@ -140,7 +143,7 @@ To build with a newer compiler, set `-Pbuild_java_version=27`. The output still 
 JAVA_HOME=/usr/lib/jvm/java-21-openjdk versions/mc26.2/gradlew -p versions/mc26.2 -Pbuild_java_version=27 build
 ```
 
-Run `python3 tools/test_package.py` after building both targets to create and verify installation and source ZIPs plus SHA-256 checksums in `dist/`. Source packaging requires a clean Git checkout with committed source changes. The packages include both Python helpers and exclude game configs, access tokens, worlds, and caches.
+Run `python3 tools/test_package.py` after building all three targets to create and verify installation and source ZIPs plus SHA-256 checksums in `dist/`. Source packaging requires a clean Git checkout with committed source changes. The packages include both Python helpers and exclude game configs, access tokens, worlds, and caches.
 
 GitHub Actions builds both Minecraft targets on Linux, Windows, and macOS, checks both helpers, and verifies the release bundles. Native UI testing is documented separately; a passing build alone does not verify gameplay.
 

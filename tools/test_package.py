@@ -21,7 +21,7 @@ try:
 finally:
     sentinel.unlink(missing_ok=True)
 paths = sorted((ROOT / 'dist').glob(f'minenotify-{version}-*.zip'))
-assert len(paths) == 3, 'Both install targets and source bundle must exist'
+assert len(paths) == 4, 'All three install targets and the source bundle must exist'
 baseline = {path.name: path.read_bytes() for path in paths}
 file = ROOT / 'README.md'
 stat = file.stat()
@@ -42,7 +42,7 @@ for path in paths:
             assert name != 'tools/.minenotify-package-check.env', 'Untracked scratch data entered source bundle'
         assert 'tools/setup.py' in names and 'docs/history.md' in names
         if path.name.endswith('-source.zip'):
-            assert 'versions/mc26.2/build.gradle' in names
+            assert 'versions/mc26.2/build.gradle' in names and 'versions/mc26.3/build.gradle' in names
             assert '.github/workflows/checks.yml' in names
             assert archive.getinfo('gradlew').external_attr >> 16 & 0o111, 'Source wrapper must remain executable'
         else:

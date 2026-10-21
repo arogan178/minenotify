@@ -9,7 +9,8 @@ from zipfile import ZipFile, ZipInfo, ZIP_DEFLATED
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE_DIRS = ('src', 'tools', 'docs', 'gradle', '.github',
-               'versions/mc26.2/src', 'versions/mc26.2/gradle')
+               'versions/mc26.2/src', 'versions/mc26.2/gradle', 'versions/mc26.3/src', 'versions/mc26.3/gradle')
+VERSION_DIRS = ('versions/mc26.2/', 'versions/mc26.3/')
 SOURCE_FILES = ('README.md', 'LICENSE', 'AGENTS.md', '.gitignore', '.gitattributes',
                 'build.gradle', 'settings.gradle', 'gradle.properties', 'gradlew', 'gradlew.bat')
 INSTALL_FILES = ('README.md', 'LICENSE', 'tools/notify.py', 'tools/setup.py',
@@ -32,6 +33,7 @@ def main():
     targets = {
         'mc1.21.1': ROOT / 'build/libs' / f'minenotify-{version}.jar',
         'mc26.2': ROOT / 'versions/mc26.2/build/libs' / f'minenotify-{version}-mc26.2.jar',
+        'mc26.3': ROOT / 'versions/mc26.3/build/libs' / f'minenotify-{version}-mc26.3.jar',
     }
     try:
         result = subprocess.run(['git', '-C', str(ROOT), 'diff', '--quiet', 'HEAD'], stderr=subprocess.PIPE)
@@ -58,7 +60,8 @@ def main():
     files = {}
     for name in tracked.decode('utf-8').split('\0'):
         if name and (name in SOURCE_FILES or name.startswith(tuple(directory + '/' for directory in SOURCE_DIRS))
-                     or name.startswith('versions/mc26.2/') and name.removeprefix('versions/mc26.2/') in SOURCE_FILES):
+                     or any(name.startswith(directory) and name.removeprefix(directory) in SOURCE_FILES
+                            for directory in VERSION_DIRS)):
             files[name] = ROOT / name
     source = out / f'minenotify-{version}-source.zip'
     write_bundle(source, files)
